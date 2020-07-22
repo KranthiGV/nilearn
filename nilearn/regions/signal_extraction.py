@@ -104,7 +104,7 @@ def img_to_signals_labels(imgs, labels_img, mask_img=None,
         if abs(mask_img.affine - target_affine).max() > 1e-9:
             raise ValueError("mask_img and imgs affines must be identical")
 
-    labels, labels_data = _masks_labels(labels_img, mask_img, background_label)
+    labels, labels_data = _mask_labels(labels_img, mask_img, background_label)
 
     data = _safe_get_data(imgs)
     target_datatype = np.float32 if data.dtype == np.float32 else np.float64
@@ -181,7 +181,7 @@ def signals_to_img_labels(signals, labels_img, mask_img=None,
             raise ValueError("mask_img and labels_img affines "
                                 "must be identical")
 
-    labels, labels_data = _masks_labels(labels_img, mask_img, background_label)
+    labels, labels_data = _mask_labels(labels_img, mask_img, background_label)
 
     # nditer is not available in numpy 1.3: using multiple loops.
     # Using these loops still gives a much faster code (6x) than this one:
@@ -410,8 +410,8 @@ def _trim_maps(maps, mask, keep_empty=False, order="F"):
         return trimmed_maps, maps_mask, np.where(sums > 0)[0]
 
 
-def _masks_labels(labels_img, mask_img, background_label=0):
-    """Mask the label images.
+def _mask_labels(labels_img, mask_img, background_label):
+    """Masks the label images.
 
     labels_img and mask_img shapes must fit.
 
@@ -419,8 +419,8 @@ def _masks_labels(labels_img, mask_img, background_label=0):
     ----------
     labels_img: Niimg-like object
         See http://nilearn.github.io/manipulating_images/input_output.html
-        regions definition as labels. By default, the label zero is used to
-        denote an absence of region. Use background_label to change it.
+        regions definition as labels. background_label is used to
+        denote an absence of region.
 
     mask_img: Niimg-like object
         See http://nilearn.github.io/manipulating_images/input_output.html
