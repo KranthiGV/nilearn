@@ -97,7 +97,14 @@ def img_to_signals_labels(imgs, labels_img, mask_img=None,
     if abs(labels_img.affine - target_affine).max() > 1e-9:
         raise ValueError("labels_img and imgs affines must be identical")
 
-    labels, labels_data = _extract2(mask_img, target_shape, target_affine, labels_img, background_label)
+    if mask_img is not None:
+        mask_img = _utils.check_niimg_3d(mask_img)
+        if mask_img.shape != target_shape:
+            raise ValueError("mask_img and imgs shapes must be identical.")
+        if abs(mask_img.affine - target_affine).max() > 1e-9:
+            raise ValueError("mask_img and imgs affines must be identical")
+
+    labels, labels_data = _masks_labels(labels_img, mask_img, background_label)
 
     data = _safe_get_data(imgs)
     target_datatype = np.float32 if data.dtype == np.float32 else np.float64
@@ -165,7 +172,16 @@ def signals_to_img_labels(signals, labels_img, mask_img=None,
     target_affine = labels_img.affine
     target_shape = labels_img.shape[:3]
 
-    labels, labels_data = _extract2(mask_img, target_shape, target_affine, labels_img, background_label)
+    if mask_img is not None:
+        mask_img = _utils.check_niimg_3d(mask_img)
+        if mask_img.shape != target_shape:
+            raise ValueError("mask_img and labels_img shapes "
+                                "must be identical.")
+        if abs(mask_img.affine - target_affine).max() > 1e-9:
+            raise ValueError("mask_img and labels_img affines "
+                                "must be identical")
+
+    labels, labels_data = _masks_labels(labels_img, mask_img, background_label)
 
     # nditer is not available in numpy 1.3: using multiple loops.
     # Using these loops still gives a much faster code (6x) than this one:
@@ -394,25 +410,22 @@ def _trim_maps(maps, mask, keep_empty=False, order="F"):
         return trimmed_maps, maps_mask, np.where(sums > 0)[0]
 
 
-def _extract2(mask_img, target_shape, target_affine, labels_img, background_label):
-    """Extract region signals from image.
+def _masks_labels(labels_img, mask_img, background_label=0):
+    """Mask the label images.
 
-    This function is applicable to regions defined by labels.
-
-    labels, imgs and mask shapes and affines must fit. This function
-    performs no resampling.
+    labels_img and mask_img shapes must fit.
 
     Parameters
     ----------
-    mask_img: Niimg-like object
-        See http://nilearn.github.io/manipulating_images/input_output.html
-        Mask to apply to labels before extracting signals. Every point
-        outside the mask is considered as background (i.e. no region).
-
     labels_img: Niimg-like object
         See http://nilearn.github.io/manipulating_images/input_output.html
         regions definition as labels. By default, the label zero is used to
         denote an absence of region. Use background_label to change it.
+
+    mask_img: Niimg-like object
+        See http://nilearn.github.io/manipulating_images/input_output.html
+        Mask to apply to labels before extracting signals. Every point
+        outside the mask is considered as background (i.e. no region).
 
     background_label: number
         number representing background in labels_img.
@@ -420,20 +433,17 @@ def _extract2(mask_img, target_shape, target_affine, labels_img, background_labe
     Returns
     -------
     labels: list or tuple
-        corresponding labels for each signal. signal[:, n] was extracted from
-        the region with label labels[n].
+        corresponding labels for each signal.
 
-    labels_data: ?
+    labels_data: Niimg-like object
+        See http://nilearn.github.io/manipulating_images/input_output.html
+        regions definition as labels.
     """
 
     if mask_img is not None:
-        mask_img = _utils.check_niimg_3d(mask_img)
-        if mask_img.shape != target_shape:
+        if mask_img.shape != labels_img.shape:
             raise ValueError("mask_img and labels_img shapes "
                              "must be identical.")
-        if abs(mask_img.affine - target_affine).max() > 1e-9:
-            raise ValueError("mask_img and labels_img affines "
-                             "must be identical")
 
     # Perform computation
     labels_data = _safe_get_data(labels_img, ensure_finite=True)
