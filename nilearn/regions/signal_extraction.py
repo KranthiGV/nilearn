@@ -176,10 +176,10 @@ def signals_to_img_labels(signals, labels_img, mask_img=None,
         mask_img = _utils.check_niimg_3d(mask_img)
         if mask_img.shape != target_shape:
             raise ValueError("mask_img and labels_img shapes "
-                                "must be identical.")
+                             "must be identical.")
         if abs(mask_img.affine - target_affine).max() > 1e-9:
             raise ValueError("mask_img and labels_img affines "
-                                "must be identical")
+                             "must be identical")
 
     labels, labels_data = _mask_labels(labels_img, mask_img, background_label)
 
