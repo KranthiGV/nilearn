@@ -97,23 +97,7 @@ def img_to_signals_labels(imgs, labels_img, mask_img=None,
     if abs(labels_img.affine - target_affine).max() > 1e-9:
         raise ValueError("labels_img and imgs affines must be identical")
 
-    if mask_img is not None:
-        mask_img = _utils.check_niimg_3d(mask_img)
-        if mask_img.shape != target_shape:
-            raise ValueError("mask_img and imgs shapes must be identical.")
-        if abs(mask_img.affine - target_affine).max() > 1e-9:
-            raise ValueError("mask_img and imgs affines must be identical")
-
-    # Perform computation
-    labels_data = _safe_get_data(labels_img, ensure_finite=True)
-    labels = list(np.unique(labels_data))
-    if background_label in labels:
-        labels.remove(background_label)
-
-    if mask_img is not None:
-        mask_data = _safe_get_data(mask_img, ensure_finite=True)
-        labels_data = labels_data.copy()
-        labels_data[np.logical_not(mask_data)] = background_label
+    labels, labels_data = _extract2(mask_img, target_shape, target_affine, labels_img, background_label)
 
     data = _safe_get_data(imgs)
     target_datatype = np.float32 if data.dtype == np.float32 else np.float64
@@ -181,24 +165,7 @@ def signals_to_img_labels(signals, labels_img, mask_img=None,
     target_affine = labels_img.affine
     target_shape = labels_img.shape[:3]
 
-    if mask_img is not None:
-        mask_img = _utils.check_niimg_3d(mask_img)
-        if mask_img.shape != target_shape:
-            raise ValueError("mask_img and labels_img shapes "
-                             "must be identical.")
-        if abs(mask_img.affine - target_affine).max() > 1e-9:
-            raise ValueError("mask_img and labels_img affines "
-                             "must be identical")
-
-    labels_data = _safe_get_data(labels_img, ensure_finite=True)
-    labels = list(np.unique(labels_data))
-    if background_label in labels:
-        labels.remove(background_label)
-
-    if mask_img is not None:
-        mask_data = _safe_get_data(mask_img, ensure_finite=True)
-        labels_data = labels_data.copy()
-        labels_data[np.logical_not(mask_data)] = background_label
+    labels, labels_data = _extract2(mask_img, target_shape, target_affine, labels_img, background_label)
 
     # nditer is not available in numpy 1.3: using multiple loops.
     # Using these loops still gives a much faster code (6x) than this one:
@@ -425,3 +392,57 @@ def _trim_maps(maps, mask, keep_empty=False, order="F"):
                                                   dtype=np.int)
     else:
         return trimmed_maps, maps_mask, np.where(sums > 0)[0]
+
+
+def _extract2(mask_img, target_shape, target_affine, labels_img, background_label):
+    """Extract region signals from image.
+
+    This function is applicable to regions defined by labels.
+
+    labels, imgs and mask shapes and affines must fit. This function
+    performs no resampling.
+
+    Parameters
+    ----------
+    mask_img: Niimg-like object
+        See http://nilearn.github.io/manipulating_images/input_output.html
+        Mask to apply to labels before extracting signals. Every point
+        outside the mask is considered as background (i.e. no region).
+
+    labels_img: Niimg-like object
+        See http://nilearn.github.io/manipulating_images/input_output.html
+        regions definition as labels. By default, the label zero is used to
+        denote an absence of region. Use background_label to change it.
+
+    background_label: number
+        number representing background in labels_img.
+
+    Returns
+    -------
+    labels: list or tuple
+        corresponding labels for each signal. signal[:, n] was extracted from
+        the region with label labels[n].
+
+    labels_data: ?
+    """
+
+    if mask_img is not None:
+        mask_img = _utils.check_niimg_3d(mask_img)
+        if mask_img.shape != target_shape:
+            raise ValueError("mask_img and labels_img shapes "
+                             "must be identical.")
+        if abs(mask_img.affine - target_affine).max() > 1e-9:
+            raise ValueError("mask_img and labels_img affines "
+                             "must be identical")
+
+    # Perform computation
+    labels_data = _safe_get_data(labels_img, ensure_finite=True)
+    labels = list(np.unique(labels_data))
+    if background_label in labels:
+        labels.remove(background_label)
+
+    if mask_img is not None:
+        mask_data = _safe_get_data(mask_img, ensure_finite=True)
+        labels_data = labels_data.copy()
+        labels_data[np.logical_not(mask_data)] = background_label
+    return labels, labels_data
